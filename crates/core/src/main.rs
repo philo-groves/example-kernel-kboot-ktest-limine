@@ -1,17 +1,15 @@
 #![no_std]
 #![no_main]
-
-#![feature(abi_x86_interrupt)]
-
-#![cfg_attr(test, feature(custom_test_frameworks))]          // test setup: enable custom test frameworks
-#![cfg_attr(test, test_runner(ktest::runner))]               // test setup: use the custom test runner only in test mode
+#![cfg_attr(target_arch = "x86_64", feature(abi_x86_interrupt))]
+#![cfg_attr(test, feature(custom_test_frameworks))] // test setup: enable custom test frameworks
+#![cfg_attr(test, test_runner(ktest::runner))] // test setup: use the custom test runner only in test mode
 #![cfg_attr(test, reexport_test_harness_main = "test_main")] // test setup: rename the test harness entry point
 
 #[macro_use]
 extern crate gk;
 
 #[unsafe(no_mangle)]
-unsafe extern "C" fn _start() -> ! {  
+unsafe extern "C" fn _start() -> ! {
     gk::init();
 
     #[cfg(test)]

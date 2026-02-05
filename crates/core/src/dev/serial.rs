@@ -1,8 +1,11 @@
+#[cfg(target_arch = "x86_64")]
 use lazy_static::lazy_static;
+#[cfg(target_arch = "x86_64")]
 use spin::Mutex;
+#[cfg(target_arch = "x86_64")]
 use uart_16550::SerialPort;
 
-
+#[cfg(target_arch = "x86_64")]
 lazy_static! {
   /// A static instance of the serial port interface.
   pub static ref SERIAL1: Mutex<SerialPort> = {
@@ -13,17 +16,22 @@ lazy_static! {
 }
 
 #[doc(hidden)]
+#[cfg(target_arch = "x86_64")]
 pub fn _print(args: ::core::fmt::Arguments) {
-  use core::fmt::Write;
-  use x86_64::instructions::interrupts;
+    use core::fmt::Write;
+    use x86_64::instructions::interrupts;
 
-  interrupts::without_interrupts(|| {
-    SERIAL1
-        .lock()
-        .write_fmt(args)
-        .expect("Printing to serial failed");
-  });
+    interrupts::without_interrupts(|| {
+        SERIAL1
+            .lock()
+            .write_fmt(args)
+            .expect("Printing to serial failed");
+    });
 }
+
+#[doc(hidden)]
+#[cfg(target_arch = "aarch64")]
+pub fn _print(_args: ::core::fmt::Arguments) {}
 
 /// Print to the serial port.
 #[macro_export]

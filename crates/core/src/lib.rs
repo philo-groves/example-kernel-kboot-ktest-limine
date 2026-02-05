@@ -1,10 +1,8 @@
 #![no_std]
 #![cfg_attr(test, no_main)]
-
-#![feature(abi_x86_interrupt)]
-
-#![cfg_attr(test, feature(custom_test_frameworks))]          // test setup: enable custom test frameworks
-#![cfg_attr(test, test_runner(ktest::runner))]               // test setup: use the custom test runner only in test mode
+#![cfg_attr(target_arch = "x86_64", feature(abi_x86_interrupt))]
+#![cfg_attr(test, feature(custom_test_frameworks))] // test setup: enable custom test frameworks
+#![cfg_attr(test, test_runner(ktest::runner))] // test setup: use the custom test runner only in test mode
 #![cfg_attr(test, reexport_test_harness_main = "test_main")] // test setup: rename the test harness entry point
 
 #[cfg(test)]
@@ -29,7 +27,8 @@ static BASE_REVISION: limine::BaseRevision = limine::BaseRevision::new();
 #[used]
 #[unsafe(link_section = ".requests_start_marker")]
 #[cfg(not(test))]
-static _START_MARKER: limine::request::RequestsStartMarker = limine::request::RequestsStartMarker::new();
+static _START_MARKER: limine::request::RequestsStartMarker =
+    limine::request::RequestsStartMarker::new();
 
 #[used]
 #[unsafe(link_section = ".requests_end_marker")]
@@ -44,8 +43,16 @@ pub fn init() {
 
 /// Halt the CPU.
 pub fn hlt_loop() -> ! {
+    #[cfg(target_arch = "x86_64")]
     loop {
         x86_64::instructions::hlt();
+    }
+
+    #[cfg(target_arch = "aarch64")]
+    loop {
+        unsafe {
+            core::arch::asm!("wfi", options(nomem, nostack, preserves_flags));
+        }
     }
 }
 
@@ -129,11 +136,20 @@ pub enum QemuExitCode {
 }
 
 pub fn exit_qemu(exit_code: QemuExitCode) {
-    use x86_64::instructions::port::Port;
+    #[cfg(target_arch = "x86_64")]
+    {
+        use x86_64::instructions::port::Port;
 
-    unsafe {
-        let mut port = Port::new(0xf4);
-        port.write(exit_code as u32);
+        unsafe {
+            let mut port = Port::new(0xf4);
+            port.write(exit_code as u32);
+        }
+    }
+
+    #[cfg(target_arch = "aarch64")]
+    {
+        let _ = exit_code;
+        hlt_loop();
     }
 }
 
