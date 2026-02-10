@@ -2,7 +2,7 @@
 #![no_main]
 #![cfg_attr(target_arch = "x86_64", feature(abi_x86_interrupt))]
 #![cfg_attr(test, feature(custom_test_frameworks))] // test setup: enable custom test frameworks
-#![cfg_attr(test, test_runner(ktest::runner))] // test setup: use the custom test runner only in test mode
+#![cfg_attr(test, test_runner(kunit::runner))] // test setup: use the custom test runner only in test mode
 #![cfg_attr(test, reexport_test_harness_main = "test_main")] // test setup: rename the test harness entry point
 
 #[macro_use]
@@ -10,12 +10,17 @@ extern crate gk;
 
 #[unsafe(no_mangle)]
 unsafe extern "C" fn _start() -> ! {
+
+    #[cfg(test)]
+    gk::init_for_tests();
+
+    #[cfg(not(test))]
     gk::init();
 
     #[cfg(test)]
     {
         serial_info_ln!("!!! RUNNING BINARY TESTS !!!");
-        ktest::init_harness("binary");
+        kunit::init_harness("binary");
         test_main();
     }
 
@@ -42,14 +47,14 @@ fn rust_panic(info: &core::panic::PanicInfo) -> ! {
 #[cfg(test)]
 #[panic_handler]
 fn rust_panic(info: &core::panic::PanicInfo) -> ! {
-    ktest::panic(info);
+    kunit::panic(info);
 }
 
 #[cfg(test)]
 mod tests {
-    use ktest::ktest;
+    use kunit::kunit;
 
-    #[ktest]
+    #[kunit]
     fn trivial_main_assertion() {
         assert_eq!(1, 1);
     }

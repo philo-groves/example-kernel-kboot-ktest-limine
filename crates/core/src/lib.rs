@@ -2,16 +2,16 @@
 #![cfg_attr(test, no_main)]
 #![cfg_attr(target_arch = "x86_64", feature(abi_x86_interrupt))]
 #![cfg_attr(test, feature(custom_test_frameworks))] // test setup: enable custom test frameworks
-#![cfg_attr(test, test_runner(ktest::runner))] // test setup: use the custom test runner only in test mode
+#![cfg_attr(test, test_runner(kunit::runner))] // test setup: use the custom test runner only in test mode
 #![cfg_attr(test, reexport_test_harness_main = "test_main")] // test setup: rename the test harness entry point
 
 #[cfg(test)]
-ktest::klib!("library", klib_config = &KLIB_CONFIG);
+kunit::klib!("library", klib_config = &KLIB_CONFIG);
 
 #[cfg(test)]
 #[allow(dead_code)]
-const KLIB_CONFIG: ktest::KlibConfig = ktest::KlibConfigBuilder::new_default()
-    .before_tests(|| init())
+const KLIB_CONFIG: kunit::KlibConfig = kunit::KlibConfigBuilder::new_default()
+    .before_tests(init_for_tests)
     .build();
 
 extern crate alloc;
@@ -39,6 +39,14 @@ static _END_MARKER: limine::request::RequestsEndMarker = limine::request::Reques
 pub fn init() {
     assert!(BASE_REVISION.is_supported());
     dev::framebuffer::fb0::init();
+}
+
+#[cfg(all(test, target_arch = "aarch64"))]
+pub fn init_for_tests() {}
+
+#[cfg(all(test, not(target_arch = "aarch64")))]
+pub fn init_for_tests() {
+    init();
 }
 
 /// Halt the CPU.
@@ -155,9 +163,9 @@ pub fn exit_qemu(exit_code: QemuExitCode) {
 
 #[cfg(test)]
 mod tests {
-    use ktest::ktest;
+    use kunit::kunit;
 
-    #[ktest]
+    #[kunit]
     fn trivial_lib_assertion() {
         assert_eq!(1, 1);
     }
