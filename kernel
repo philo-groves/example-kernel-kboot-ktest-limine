@@ -4,17 +4,20 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: kernel <build|run|test> [cargo-args...] <--86_64|--x86_64|--aarch64> [...]
+Usage:
+  kernel <build|run|test> [cargo-args...] <--86_64|--x86_64|--aarch64> [...]
+  kernel clean [k1-args...]
 
 Examples:
   kernel build --86_64
   kernel run --aarch64
   kernel test --86_64 -p crate_name
   kernel build --86_64 --aarch64
+  kernel clean
 EOF
 }
 
-if [[ $# -lt 2 ]]; then
+if [[ $# -lt 1 ]]; then
   usage
   exit 1
 fi
@@ -23,9 +26,14 @@ command="$1"
 shift
 
 case "$command" in
+  clean)
+    echo "==> k1 clean"
+    k1 clean "$@"
+    exit 0
+    ;;
   build|run|test) ;;
   *)
-    echo "Error: unsupported command '$command'. Expected one of: build, run, test." >&2
+    echo "Error: unsupported command '$command'. Expected one of: build, run, test, clean." >&2
     usage
     exit 1
     ;;

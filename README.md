@@ -57,13 +57,14 @@ Supported commands:
 - `build`
 - `run`
 - `test`
+- `clean`
 
 Supported architecture flags:
 
 - `--86_64` (alias: `--x86_64`)
 - `--aarch64`
 
-At least one architecture must be supplied. If multiple architectures are supplied, they are executed sequentially in the order provided.
+At least one architecture must be supplied for `build`, `run`, and `test`. If multiple architectures are supplied, they are executed sequentially in the order provided.
 
 Examples:
 
@@ -71,6 +72,7 @@ Examples:
 - `kernel run --aarch64`
 - `kernel test --86_64`
 - `kernel test --86_64 --aarch64`
+- `kernel clean`
 
 ### Setup (so `kernel` works directly in shell)
 

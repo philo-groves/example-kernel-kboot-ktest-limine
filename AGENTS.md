@@ -12,26 +12,30 @@ Keep this file current as source-of-truth guidance for future sessions.
 
 ## Command Execution Rules
 - Prefer running from repo root in WSL: `~/Projects/grovean`.
-- Use the `kernel` helper for normal build/run/test flows.
+- Use the `kernel` helper for normal build/run/test flows and cleanup (`kernel clean`).
 - Keep architecture explicit on every run/test command.
 
 ## `kernel` Script (concise usage)
-- Usage: `kernel <build|run|test> [cargo-args...] <--86_64|--x86_64|--aarch64> [...]`
+- Usage:
+  - `kernel <build|run|test> [cargo-args...] <--86_64|--x86_64|--aarch64> [...]`
+  - `kernel clean [k1-args...]`
 - Commands:
   - `build`
   - `run`
   - `test`
+  - `clean` (passthrough to `k1 clean`)
 - Arch flags:
   - `--86_64` (alias: `--x86_64`)
   - `--aarch64`
 - Rules:
-  - At least one architecture flag is required.
+  - At least one architecture flag is required for `build`, `run`, and `test`.
   - Multiple architectures run sequentially in the order provided.
 - Examples:
   - `kernel build --86_64`
   - `kernel run --aarch64`
   - `kernel test --86_64 --aarch64`
   - `kernel test -p extended-crate --86_64`
+  - `kernel clean`
 
 ## Direct Cargo Fallback
 - Build: `cargo build --target linker/<arch>-grovean.json`
