@@ -1,4 +1,4 @@
 #![no_std]
 #![no_main]
 
-extern crate gk;
+extern crate grovean;

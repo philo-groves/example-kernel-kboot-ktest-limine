@@ -6,7 +6,7 @@
 #![cfg_attr(test, reexport_test_harness_main = "test_main")] // test setup: rename the test harness entry point
 
 #[cfg(test)]
-kunit::klib!("kernel");
+kunit::klib!("grovean");
 
 extern crate alloc;
 
