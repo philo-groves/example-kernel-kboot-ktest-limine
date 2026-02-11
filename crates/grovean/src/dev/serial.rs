@@ -1,3 +1,5 @@
+#[cfg(target_arch = "aarch64")]
+use core::fmt;
 #[cfg(target_arch = "x86_64")]
 use lazy_static::lazy_static;
 #[cfg(target_arch = "aarch64")]
@@ -23,14 +25,61 @@ lazy_static! {
 
 #[cfg(target_arch = "aarch64")]
 const UART0_MMIO_BASE: usize = 0x0900_0000;
+#[cfg(target_arch = "aarch64")]
+const UART_LSR_OFFSET: usize = 5;
+#[cfg(target_arch = "aarch64")]
+const UART_LSR_OUTPUT_EMPTY: u8 = 1 << 5;
+#[cfg(target_arch = "aarch64")]
+const UART_WRITE_SPIN_LIMIT: usize = 100_000;
+
+#[cfg(target_arch = "aarch64")]
+struct Aarch64SerialPort {
+    base: usize,
+    _mmio: MmioSerialPort,
+}
+
+#[cfg(target_arch = "aarch64")]
+impl Aarch64SerialPort {
+    fn new(base: usize) -> Self {
+        let mut mmio = unsafe { MmioSerialPort::new(base) };
+        mmio.init();
+        Self { base, _mmio: mmio }
+    }
+
+    fn write_byte_non_blocking(&mut self, byte: u8) -> Result<(), fmt::Error> {
+        let line_sts = (self.base + UART_LSR_OFFSET) as *const u8;
+        let data = self.base as *mut u8;
+
+        for _ in 0..UART_WRITE_SPIN_LIMIT {
+            let status = unsafe { core::ptr::read_volatile(line_sts) };
+            if status & UART_LSR_OUTPUT_EMPTY != 0 {
+                unsafe {
+                    core::ptr::write_volatile(data, byte);
+                }
+                return Ok(());
+            }
+            core::hint::spin_loop();
+        }
+
+        Err(fmt::Error)
+    }
+}
+
+#[cfg(target_arch = "aarch64")]
+impl fmt::Write for Aarch64SerialPort {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        for byte in s.bytes() {
+            self.write_byte_non_blocking(byte)?;
+        }
+        Ok(())
+    }
+}
 
 #[cfg(target_arch = "aarch64")]
 lazy_static! {
   /// A static instance of the aarch64 memory-mapped serial port interface.
-  pub static ref SERIAL1: Mutex<MmioSerialPort> = {
-    let mut serial_port = unsafe { MmioSerialPort::new(UART0_MMIO_BASE) };
-    serial_port.init();
-    Mutex::new(serial_port)
+  static ref SERIAL1: Mutex<Aarch64SerialPort> = {
+    Mutex::new(Aarch64SerialPort::new(UART0_MMIO_BASE))
   };
 }
 
@@ -53,10 +102,7 @@ pub fn _print(args: ::core::fmt::Arguments) {
 pub fn _print(args: ::core::fmt::Arguments) {
     use core::fmt::Write;
 
-    SERIAL1
-        .lock()
-        .write_fmt(args)
-        .expect("Printing to serial failed");
+    let _ = SERIAL1.lock().write_fmt(args);
 }
 
 /// Print to the serial port.
