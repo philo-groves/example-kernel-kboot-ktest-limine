@@ -2,17 +2,17 @@
 
 ## How to Build
 
-Cross-compiling is supported by LLVM, allowing developers to build for non-native architectures.
-
-`cargo build --target linker/<arch>-grovean.json`
+Cross-compiling is supported by cargo and LLVM, allowing developers to build for non-native architectures.
 
 #### Build with x86_64
 
-`cargo build --target linker/x86_64-grovean.json`
+- `kernel build --x86_64` (shorthand)
+- `cargo build --target linker/x86_64-grovean.json`
 
 #### Build with aarch64
 
-`cargo build --target linker/aarch64-grovean.json`
+- `kernel build --aarch64` (shorthand)
+- `cargo build --target linker/aarch64-grovean.json`
 
 ## How to run
 
@@ -20,25 +20,27 @@ Running is executed through the `k1` crate. As a command line utility, it must b
 
 #### Run with x86_64
 
-`cargo run --target linker/x86_64-grovean.json`
+- `kernel run --x86_64` (shorthand)
+- `cargo run --target linker/x86_64-grovean.json`
 
 #### Run with aarch64
 
-`cargo run --target linker/aarch64-grovean.json`
+- `kernel run --aarch64` (shorthand)
+- `cargo run --target linker/aarch64-grovean.json`
 
 ## How to Test
 
-Testing is conducted through the `kunit` crate.
-
-`cargo test --target linker/<arch>-grovean.json`
+Testing is conducted through the `kunit` crate, which is included as a dev dependency and configured in the lib.rs of each crate.
 
 #### Test with x86_64
 
-`cargo test --target linker/x86_64-grovean.json`
+- `kernel test --x86_64` (shorthand)
+- `cargo test --target linker/x86_64-grovean.json`
 
 #### Test with aarch64
 
-`cargo test --target linker/aarch64-grovean.json`
+- `kernel test --aarch64` (shorthand)
+- `cargo test --target linker/aarch64-grovean.json`
 
 #### Test Specific Crate
 
