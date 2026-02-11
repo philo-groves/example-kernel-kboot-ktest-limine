@@ -1,8 +1,11 @@
 use crate::dev::framebuffer::Framebuffer;
+#[cfg(not(test))]
 use font8x8::legacy::BASIC_LEGACY as FONT;
+#[cfg(not(test))]
 use limine::request::FramebufferRequest;
 
 #[used]
+#[cfg(not(test))]
 #[unsafe(link_section = ".requests")]
 static FRAMEBUFFER_REQUEST: FramebufferRequest = FramebufferRequest::new();
 
@@ -10,6 +13,7 @@ static FRAMEBUFFER_REQUEST: FramebufferRequest = FramebufferRequest::new();
 pub static mut FRONT_BUFFER: Option<Framebufferterminal> = None;
 
 /// Initialize the framebuffer terminal
+#[cfg(not(test))]
 pub fn init() {
     if let Some(framebuffer_response) = FRAMEBUFFER_REQUEST.get_response() {
         if let Some(framebuffer_metadata) = framebuffer_response.framebuffers().next() {

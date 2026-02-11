@@ -1,18 +1,12 @@
 #![no_std]
-#![cfg_attr(test, no_main)]
+#![no_main]
 #![cfg_attr(target_arch = "x86_64", feature(abi_x86_interrupt))]
 #![cfg_attr(test, feature(custom_test_frameworks))] // test setup: enable custom test frameworks
 #![cfg_attr(test, test_runner(kunit::runner))] // test setup: use the custom test runner only in test mode
 #![cfg_attr(test, reexport_test_harness_main = "test_main")] // test setup: rename the test harness entry point
 
 #[cfg(test)]
-kunit::klib!("library", klib_config = &KLIB_CONFIG);
-
-#[cfg(test)]
-#[allow(dead_code)]
-const KLIB_CONFIG: kunit::KlibConfig = kunit::KlibConfigBuilder::new_default()
-    .before_tests(init_for_tests)
-    .build();
+kunit::klib!("kernel");
 
 extern crate alloc;
 
@@ -20,6 +14,7 @@ pub mod allocator;
 pub mod dat;
 pub mod dev;
 
+#[cfg(not(test))]
 #[used]
 #[unsafe(link_section = ".requests")]
 static BASE_REVISION: limine::BaseRevision = limine::BaseRevision::new();
@@ -35,10 +30,29 @@ static _START_MARKER: limine::request::RequestsStartMarker =
 #[cfg(not(test))]
 static _END_MARKER: limine::request::RequestsEndMarker = limine::request::RequestsEndMarker::new();
 
+#[cfg(not(test))]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn _start() -> ! {
+    init();
+
+    // fb0_info_ln!("hello framebuffer");
+
+    hlt_loop()
+}
+
+#[cfg(not(test))]
+#[panic_handler]
+fn rust_panic(_info: &core::panic::PanicInfo) -> ! {
+    hlt_loop()
+}
+
 /// Initialize the kernel.
 pub fn init() {
-    assert!(BASE_REVISION.is_supported());
-    dev::framebuffer::fb0::init();
+    #[cfg(not(test))]
+    {
+        assert!(BASE_REVISION.is_supported());
+        dev::framebuffer::fb0::init();
+    }
 }
 
 #[cfg(all(test, target_arch = "aarch64"))]

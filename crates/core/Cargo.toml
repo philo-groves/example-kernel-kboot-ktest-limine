@@ -22,3 +22,9 @@ kunit = { path = "../../../kunit" }
 
 [lib]
 doctest = false # disable doctests and their log outputs (we have no doctests)
+
+[[bin]]
+name = "gk"
+path = "src/lib.rs"
+test = false
+bench = false
