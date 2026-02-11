@@ -122,7 +122,7 @@ pub(super) fn _print(args: ::core::fmt::Arguments) {
 mod tests {
     use kunit::kunit;
 
-    use super::{SerialConfig, SerialRuntimeState, DEFAULT_SERIAL_CONFIG};
+    use super::{DEFAULT_SERIAL_CONFIG, SerialConfig, SerialRuntimeState};
 
     #[kunit]
     fn default_config_has_expected_16550_values() {
