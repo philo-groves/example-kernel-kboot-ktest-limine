@@ -13,6 +13,7 @@ extern crate alloc;
 pub mod allocator;
 pub mod dat;
 pub mod dev;
+pub mod memory;
 
 #[cfg(not(test))]
 #[used]
@@ -51,6 +52,7 @@ pub fn init() {
     #[cfg(not(test))]
     {
         assert!(BASE_REVISION.is_supported());
+        memory::init();
         dev::framebuffer::fb0::init();
     }
 }
