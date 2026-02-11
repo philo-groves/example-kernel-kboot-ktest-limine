@@ -4,13 +4,13 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: grovean <build|run|test> [cargo-args...] <--86_64|--x86_64|--aarch64> [...]
+Usage: kernel <build|run|test> [cargo-args...] <--86_64|--x86_64|--aarch64> [...]
 
 Examples:
-  grovean build --86_64
-  grovean run --aarch64
-  grovean test --86_64 -p crate_name
-  grovean build --86_64 --aarch64
+  kernel build --86_64
+  kernel run --aarch64
+  kernel test --86_64 -p crate_name
+  kernel build --86_64 --aarch64
 EOF
 }
 
