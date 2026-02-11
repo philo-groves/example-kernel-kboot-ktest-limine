@@ -1,4 +1,3 @@
-.build/
-.testing/
+.k1/
 target
 *.lock
