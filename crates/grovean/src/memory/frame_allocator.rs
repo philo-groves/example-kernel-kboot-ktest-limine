@@ -3,7 +3,13 @@ use spin::Mutex;
 use crate::memory::memory_map::{self, MemoryRegion, MemoryRegionKind};
 
 pub const FRAME_SIZE_BYTES: u64 = 4096;
+#[cfg(test)]
+const MAX_FRAME_REGIONS: usize = 64;
+#[cfg(not(test))]
 const MAX_FRAME_REGIONS: usize = 512;
+#[cfg(test)]
+const MAX_RECYCLED_FRAMES: usize = 128;
+#[cfg(not(test))]
 const MAX_RECYCLED_FRAMES: usize = 512;
 
 static FRAME_ALLOCATOR: Mutex<FrameAllocatorState> = Mutex::new(FrameAllocatorState::Uninitialized);
@@ -164,20 +170,22 @@ impl CursorFrameAllocator {
         self.free_frames = 0;
         self.used_frames = 0;
 
-        for region in regions {
+        let mut idx = 0usize;
+        while idx < regions.len() {
+            let region = &regions[idx];
             if region.kind != MemoryRegionKind::Usable || region.length == 0 {
+                idx += 1;
                 continue;
             }
 
-            let end = region
-                .base
-                .checked_add(region.length)
-                .ok_or(FrameAllocatorError::AddressOverflow)?;
+            let end = region.base;
+            let end = checked_add_u64(end, region.length)?;
 
             let start_aligned = align_up(region.base, FRAME_SIZE_BYTES)?;
             let end_aligned = align_down(end, FRAME_SIZE_BYTES);
 
             if start_aligned >= end_aligned {
+                idx += 1;
                 continue;
             }
 
@@ -190,13 +198,12 @@ impl CursorFrameAllocator {
                 next: start_aligned,
                 end: end_aligned,
             };
-            self.total_frames = self
-                .total_frames
-                .checked_add(frame_region.frame_count())
-                .ok_or(FrameAllocatorError::AddressOverflow)?;
+            self.total_frames = checked_add_u64(self.total_frames, frame_region.frame_count())?;
 
             self.regions[self.region_len] = frame_region;
             self.region_len += 1;
+
+            idx += 1;
         }
 
         self.free_frames = self.total_frames;
@@ -209,10 +216,14 @@ impl CursorFrameAllocator {
             return false;
         }
 
-        for region in &self.regions[..self.region_len] {
+        let mut idx = 0usize;
+        while idx < self.region_len {
+            let region = &self.regions[idx];
             if address >= region.start && address < region.end {
                 return true;
             }
+
+            idx += 1;
         }
 
         false
@@ -240,10 +251,12 @@ impl CursorFrameAllocator {
     fn recompute_total_frames(&mut self) -> Result<(), FrameAllocatorError> {
         let mut total = 0u64;
 
-        for region in &self.regions[..self.region_len] {
-            total = total
-                .checked_add(region.frame_count())
-                .ok_or(FrameAllocatorError::AddressOverflow)?;
+        let mut idx = 0usize;
+        while idx < self.region_len {
+            let region = &self.regions[idx];
+            total = checked_add_u64(total, region.frame_count())?;
+
+            idx += 1;
         }
 
         self.total_frames = total;
@@ -264,10 +277,7 @@ impl FrameAllocatorBackend for CursorFrameAllocator {
             let region = &mut self.regions[self.region_cursor];
             if region.next < region.end {
                 let address = region.next;
-                region.next = region
-                    .next
-                    .checked_add(FRAME_SIZE_BYTES)
-                    .ok_or(FrameAllocatorError::AddressOverflow)?;
+                region.next = checked_add_u64(region.next, FRAME_SIZE_BYTES)?;
 
                 self.used_frames += 1;
                 self.free_frames = self.free_frames.saturating_sub(1);
@@ -301,16 +311,12 @@ impl FrameAllocatorBackend for CursorFrameAllocator {
         }
 
         let count_u64 = count as u64;
-        let size_bytes = count_u64
-            .checked_mul(FRAME_SIZE_BYTES)
-            .ok_or(FrameAllocatorError::AddressOverflow)?;
+        let size_bytes = checked_mul_u64(count_u64, FRAME_SIZE_BYTES)?;
 
         for idx in self.region_cursor..self.region_len {
             let region = &mut self.regions[idx];
-            let candidate_end = region
-                .next
-                .checked_add(size_bytes)
-                .ok_or(FrameAllocatorError::AddressOverflow)?;
+            let candidate_end = region.next;
+            let candidate_end = checked_add_u64(candidate_end, size_bytes)?;
 
             if candidate_end <= region.end {
                 let start = region.next;
@@ -338,16 +344,16 @@ impl FrameAllocatorBackend for CursorFrameAllocator {
             return Err(FrameAllocatorError::InvalidReserveRange);
         }
 
-        let reserve_end = base
-            .checked_add(length)
-            .ok_or(FrameAllocatorError::AddressOverflow)?;
+        let reserve_end = checked_add_u64(base, length)?;
         let reserve_start = align_down(base, FRAME_SIZE_BYTES);
         let reserve_end_aligned = align_up(reserve_end, FRAME_SIZE_BYTES)?;
 
         let mut next_regions = [FrameRegion::empty(); MAX_FRAME_REGIONS];
         let mut next_len = 0usize;
 
-        for region in &self.regions[..self.region_len] {
+        let mut idx = 0usize;
+        while idx < self.region_len {
+            let region = &self.regions[idx];
             if !region.overlaps(reserve_start, reserve_end_aligned) {
                 if next_len >= MAX_FRAME_REGIONS {
                     return Err(FrameAllocatorError::TooManyRegions);
@@ -355,6 +361,7 @@ impl FrameAllocatorBackend for CursorFrameAllocator {
 
                 next_regions[next_len] = *region;
                 next_len += 1;
+                idx += 1;
                 continue;
             }
 
@@ -389,6 +396,8 @@ impl FrameAllocatorBackend for CursorFrameAllocator {
                     next_len += 1;
                 }
             }
+
+            idx += 1;
         }
 
         self.regions = next_regions;
@@ -506,10 +515,27 @@ fn align_up(value: u64, align: u64) -> Result<u64, FrameAllocatorError> {
     }
 
     let mask = align - 1;
-    value
-        .checked_add(mask)
-        .map(|rounded| rounded & !mask)
-        .ok_or(FrameAllocatorError::AddressOverflow)
+    checked_add_u64(value, mask).map(|rounded| rounded & !mask)
+}
+
+fn checked_add_u64(lhs: u64, rhs: u64) -> Result<u64, FrameAllocatorError> {
+    let sum = lhs.wrapping_add(rhs);
+    if sum < lhs {
+        return Err(FrameAllocatorError::AddressOverflow);
+    }
+
+    Ok(sum)
+}
+
+fn checked_mul_u64(lhs: u64, rhs: u64) -> Result<u64, FrameAllocatorError> {
+    if lhs == 0 || rhs == 0 {
+        return Ok(0);
+    }
+    if lhs > u64::MAX / rhs {
+        return Err(FrameAllocatorError::AddressOverflow);
+    }
+
+    Ok(lhs * rhs)
 }
 
 #[cfg(test)]
@@ -521,25 +547,13 @@ mod tests {
         MemoryRegionKind,
     };
 
-    fn usable_region(base: u64, length: u64) -> MemoryRegion {
-        MemoryRegion {
-            base,
-            length,
-            kind: MemoryRegionKind::Usable,
-        }
-    }
-
-    fn reserved_region(base: u64, length: u64) -> MemoryRegion {
-        MemoryRegion {
-            base,
-            length,
-            kind: MemoryRegionKind::Reserved,
-        }
-    }
-
     #[kunit]
     fn allocates_all_frames_then_reports_out_of_memory() {
-        let regions = [usable_region(0x1000, 0x3000)];
+        let regions = [MemoryRegion {
+            base: 0x1000,
+            length: 0x3000,
+            kind: MemoryRegionKind::Usable,
+        }];
         let mut allocator = CursorFrameAllocator::from_memory_regions(&regions)
             .expect("allocator init should pass");
 
@@ -569,7 +583,11 @@ mod tests {
 
     #[kunit]
     fn frees_and_reuses_frames() {
-        let regions = [usable_region(0x8000, 0x2000)];
+        let regions = [MemoryRegion {
+            base: 0x8000,
+            length: 0x2000,
+            kind: MemoryRegionKind::Usable,
+        }];
         let mut allocator = CursorFrameAllocator::from_memory_regions(&regions)
             .expect("allocator init should pass");
 
@@ -588,9 +606,21 @@ mod tests {
     #[kunit]
     fn ignores_non_usable_regions() {
         let regions = [
-            reserved_region(0x0000, 0x5000),
-            usable_region(0x8000, 0x1000),
-            reserved_region(0x9000, 0x2000),
+            MemoryRegion {
+                base: 0x0000,
+                length: 0x5000,
+                kind: MemoryRegionKind::Reserved,
+            },
+            MemoryRegion {
+                base: 0x8000,
+                length: 0x1000,
+                kind: MemoryRegionKind::Usable,
+            },
+            MemoryRegion {
+                base: 0x9000,
+                length: 0x2000,
+                kind: MemoryRegionKind::Reserved,
+            },
         ];
         let mut allocator = CursorFrameAllocator::from_memory_regions(&regions)
             .expect("allocator init should pass");
@@ -607,7 +637,11 @@ mod tests {
 
     #[kunit]
     fn rounds_regions_to_frame_boundaries() {
-        let regions = [usable_region(0x1003, 0x3001)];
+        let regions = [MemoryRegion {
+            base: 0x1003,
+            length: 0x3001,
+            kind: MemoryRegionKind::Usable,
+        }];
         let mut allocator = CursorFrameAllocator::from_memory_regions(&regions)
             .expect("allocator init should pass");
 
@@ -628,7 +662,11 @@ mod tests {
 
     #[kunit]
     fn allocates_contiguous_frame_ranges() {
-        let regions = [usable_region(0x1000, 0x5000)];
+        let regions = [MemoryRegion {
+            base: 0x1000,
+            length: 0x5000,
+            kind: MemoryRegionKind::Usable,
+        }];
         let mut allocator = CursorFrameAllocator::from_memory_regions(&regions)
             .expect("allocator init should pass");
 
@@ -645,7 +683,11 @@ mod tests {
 
     #[kunit]
     fn rejects_invalid_free_address() {
-        let regions = [usable_region(0x1000, 0x2000)];
+        let regions = [MemoryRegion {
+            base: 0x1000,
+            length: 0x2000,
+            kind: MemoryRegionKind::Usable,
+        }];
         let mut allocator = CursorFrameAllocator::from_memory_regions(&regions)
             .expect("allocator init should pass");
 
@@ -658,7 +700,11 @@ mod tests {
 
     #[kunit]
     fn reserve_range_removes_frames_from_allocation_pool() {
-        let regions = [usable_region(0x1000, 0x6000)];
+        let regions = [MemoryRegion {
+            base: 0x1000,
+            length: 0x6000,
+            kind: MemoryRegionKind::Usable,
+        }];
         let mut allocator = CursorFrameAllocator::from_memory_regions(&regions)
             .expect("allocator init should pass");
 
