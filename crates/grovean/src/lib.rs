@@ -57,13 +57,8 @@ pub fn init() {
     }
 }
 
-#[cfg(all(test, target_arch = "aarch64"))]
+#[cfg(test)]
 pub fn init_for_tests() {}
-
-#[cfg(all(test, not(target_arch = "aarch64")))]
-pub fn init_for_tests() {
-    init();
-}
 
 /// Halt the CPU.
 pub fn hlt_loop() -> ! {

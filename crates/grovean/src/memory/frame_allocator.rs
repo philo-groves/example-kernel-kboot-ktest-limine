@@ -7,6 +7,7 @@ const MAX_FRAME_REGIONS: usize = 512;
 const MAX_RECYCLED_FRAMES: usize = 512;
 
 static FRAME_ALLOCATOR: Mutex<FrameAllocatorState> = Mutex::new(FrameAllocatorState::Uninitialized);
+static FRAME_ALLOCATOR_INIT_ERROR: Mutex<Option<FrameAllocatorError>> = Mutex::new(None);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FrameAllocatorError {
@@ -408,8 +409,8 @@ impl FrameAllocatorBackend for CursorFrameAllocator {
     }
 }
 
-pub fn init() {
-    memory_map::with_boot_memory_map(|map| {
+pub fn init() -> Result<(), FrameAllocatorError> {
+    let init_result = memory_map::with_boot_memory_map(|map| {
         let mut allocator = FRAME_ALLOCATOR.lock();
 
         if matches!(&*allocator, FrameAllocatorState::Uninitialized) {
@@ -418,12 +419,30 @@ pub fn init() {
         }
 
         match &mut *allocator {
-            FrameAllocatorState::Active(ActiveBackend::Cursor(backend)) => backend
-                .initialize_from_memory_regions(map.regions())
-                .expect("failed to initialize frame allocator"),
+            FrameAllocatorState::Active(ActiveBackend::Cursor(backend)) => {
+                backend.initialize_from_memory_regions(map.regions())
+            }
             FrameAllocatorState::Uninitialized => unreachable!(),
         }
     });
+
+    let mut init_error = FRAME_ALLOCATOR_INIT_ERROR.lock();
+    match init_result {
+        Ok(()) => {
+            *init_error = None;
+            Ok(())
+        }
+        Err(error) => {
+            let mut allocator = FRAME_ALLOCATOR.lock();
+            *allocator = FrameAllocatorState::Uninitialized;
+            *init_error = Some(error);
+            Err(error)
+        }
+    }
+}
+
+pub fn last_init_error() -> Option<FrameAllocatorError> {
+    *FRAME_ALLOCATOR_INIT_ERROR.lock()
 }
 
 pub fn alloc_frame() -> Result<PhysFrame, FrameAllocatorError> {
